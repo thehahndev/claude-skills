@@ -62,3 +62,7 @@ Assess the size and impact of the changes, then choose the appropriate level of 
 ```
 
 Use your judgement — err on the side of brevity unless the changes genuinely need more context.
+
+# Output format
+
+Wrap the PR description body in a fenced markdown code block so the raw markdown is easy to select and copy from the terminal.
