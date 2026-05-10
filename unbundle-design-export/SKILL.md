@@ -23,27 +23,6 @@ The JavaScript in the bundle is Claude Design's own edit-mode overlay (React + a
 
 ---
 
-## Bundle format reference
-
-A Claude Design bundle contains three custom script tags:
-
-```html
-<script type="__bundler/manifest">{ "UUID": { "type": "font/woff2"|"text/javascript"|"text/jsx", "data": "<base64>", "compressed": true|false }, ... }</script>
-<script type="__bundler/template">JSON-encoded string of the full page HTML</script>
-<script type="__bundler/ext_resources">[]</script>
-```
-
-**Important:** The template content is a JSON-encoded string — you must `JSON.parse()` it before use, not just extract it with a regex.
-
-Asset types:
-- `font/woff2` — Inter font subsets; extract these
-- `text/javascript` — React, ReactDOM, Babel — Claude Design runtime only; discard
-- `text/jsx` — TweaksPanel edit overlay — Claude Design utility; discard
-
-The actual page HTML (the user's content) is already static inside the template. There is nothing to pre-render.
-
----
-
 ## How to perform the extraction
 
 Write the script below to `_extract_bundle.mjs` in the project directory, run it, then delete it. No npm install needed — it uses only Node.js built-ins.
@@ -165,27 +144,12 @@ If any item is not yet true, complete it before finishing.
 
 ---
 
-## After extraction
-
-Verify the output using the tools available to you:
-
-1. **Script tag count** — the extraction script prints "Script tags remaining: N". If N > 0, read the HTML file, identify the remaining tags, and resolve them per the Troubleshooting section before continuing.
-2. **CSS link injected** — read the output HTML file and confirm `<link rel="stylesheet" href="css/app.css">` is present in `<head>`.
-3. **CSS is populated** — read `css/app.css` and confirm it contains CSS rules, not just whitespace.
-4. **Fonts are present** — list the `fonts/` directory and confirm `.woff2` files were written.
-
----
-
 ## Troubleshooting
 
 **"No Claude Design bundle found"** — The file may be named differently. Check that `__bundler/manifest` appears in the file. Pass the filename explicitly by editing the `bundleFile` constant.
 
-**Fonts not loading** — Check `@font-face` declarations in `app.css` use relative paths like `fonts/inter-1.woff2`. If they still contain UUIDs, check the UUID-to-font mapping loop.
-
 **Script tags remain after extraction** — Read the HTML file and list every remaining `<script>` tag. Show the list to the user and ask explicitly whether each should be kept or removed. Do not decide independently. Do not mark the task complete until the user has answered and the appropriate action has been taken.
 
 **`node` not found** — Node.js must be installed. Download from nodejs.org. Version 18+ is recommended (ESM support).
-
-**Page looks wrong after extraction** — The CSS may depend on class names injected by the React overlay. This is rare but possible. In this case, open the original bundle in a browser, use DevTools to copy the fully-rendered HTML, and use that as the base instead.
 
 **If the user wants JavaScript preserved** — Some projects include interactive components. In that case, keep the `text/jsx` asset, compile it with Babel (`npx babel --presets @babel/preset-react`), write it to `js/app.js`, and add a `<script src="js/app.js">` tag. React and ReactDOM from the manifest can also be extracted and served locally.
