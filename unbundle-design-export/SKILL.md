@@ -1,17 +1,17 @@
 ---
 name: unbundle-design-export
-description: "Converts a Claude Design export bundle (typically named index.php or index.html, usually 1-5 MB) into plain static files - HTML, CSS, and font files with no JavaScript required. Use this skill whenever the user mentions a Claude Design export, a bundled HTML file from Claude Design, or asks to unbundle, extract, or convert a Claude Design project. Also trigger this skill if the user has a large single-file HTML export and wants to separate it into individual CSS and font files."
+description: "Converts a Claude Design export bundle (typically named index.html, usually 1-5 MB) into plain static files - HTML, CSS, and font files with no JavaScript required. Use this skill whenever the user mentions a Claude Design export, a bundled HTML file from Claude Design, or asks to unbundle, extract, or convert a Claude Design project. Also trigger this skill if the user has a large single-file HTML export and wants to separate it into individual CSS and font files."
 ---
 
 ## What this skill does
 
-Claude Design exports are single self-extracting HTML files (often saved as `.php` despite containing no PHP). They pack all assets — fonts, CSS, and JavaScript — as base64+gzip blobs inside custom `<script>` tags. When opened in a browser, a runtime unpacker reconstructs these assets on the fly.
+Claude Design exports are single self-extracting HTML files. They pack all assets — fonts, CSS, and JavaScript — as base64+gzip blobs inside custom `<script>` tags. When opened in a browser, a runtime unpacker reconstructs these assets on the fly.
 
 This skill decodes those blobs and produces a clean, static file structure:
 
 ```
 project/
-├── index.php     <- plain HTML (no script tags)
+├── index.html    <- plain HTML (no script tags)
 ├── css/
 │   └── app.css   <- all extracted styles
 └── fonts/
@@ -56,8 +56,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Find the bundle file — accept index.php, index.html, or any .html/.php in cwd
-const candidates = ['index.php', 'index.html'].concat(
+// Find the bundle file — accept index.html, index.php, or any .html/.php in cwd
+const candidates = ['index.html', 'index.php'].concat(
   fs.readdirSync(__dirname).filter(f => /\.(php|html)$/i.test(f))
 );
 const bundleFile = candidates.find(f => {
@@ -136,7 +136,9 @@ Run it:
 node _extract_bundle.mjs
 ```
 
-Then clean up:
+**If the script exits with an error:** stop immediately. Do not delete `_extract_bundle.mjs`. Report the full error output to the user and wait for instructions.
+
+Only if the script succeeds: **immediately** delete the temporary script.
 ```bash
 # Windows
 del _extract_bundle.mjs
@@ -144,15 +146,33 @@ del _extract_bundle.mjs
 rm _extract_bundle.mjs
 ```
 
+Verify the deletion succeeded (e.g. confirm the file no longer exists) before proceeding.
+
+---
+
+## Done when
+
+**The task is not complete until every item on this list is verified.** Each item must be confirmed by actively reading or inspecting the relevant file — do not assume correctness based on the extraction script having run without errors. Complete any unmet item before reporting success.
+
+- [ ] **Temp script deleted**: confirm `_extract_bundle.mjs` does not exist in the project directory by checking for it explicitly
+- [ ] **CSS link present**: read the output HTML file and confirm it contains `<link rel="stylesheet" href="css/app.css">` inside `<head>`
+- [ ] **CSS non-empty**: read `css/app.css` and confirm it contains actual CSS rules (not an empty or whitespace-only file)
+- [ ] **Fonts extracted**: list the `fonts/` directory and confirm at least one `.woff2` file is present
+- [ ] **No script tags**: read the output HTML file and confirm it contains zero `<script` occurrences — if any remain, resolve them per the Troubleshooting section before proceeding
+- [ ] **No other temp files**: confirm no other files written during this run (e.g. intermediate files, renamed copies) remain in the project directory
+
+If any item is not yet true, complete it before finishing.
+
 ---
 
 ## After extraction
 
-Verify the output:
-1. Open the HTML file in a browser — it should render identically to the original
-2. DevTools -> Network: only `app.css` and font files should load (no `.js` files)
-3. DevTools -> Console: should be clean (no errors)
-4. Check `<script` tags remaining — the extraction script prints this count; it should be 0
+Verify the output using the tools available to you:
+
+1. **Script tag count** — the extraction script prints "Script tags remaining: N". If N > 0, read the HTML file, identify the remaining tags, and resolve them per the Troubleshooting section before continuing.
+2. **CSS link injected** — read the output HTML file and confirm `<link rel="stylesheet" href="css/app.css">` is present in `<head>`.
+3. **CSS is populated** — read `css/app.css` and confirm it contains CSS rules, not just whitespace.
+4. **Fonts are present** — list the `fonts/` directory and confirm `.woff2` files were written.
 
 ---
 
@@ -162,7 +182,7 @@ Verify the output:
 
 **Fonts not loading** — Check `@font-face` declarations in `app.css` use relative paths like `fonts/inter-1.woff2`. If they still contain UUIDs, check the UUID-to-font mapping loop.
 
-**Script tags remain after extraction** — Some inline `<script>` tags (e.g., analytics, third-party widgets) may be legitimate user content. Review them before removing manually.
+**Script tags remain after extraction** — Read the HTML file and list every remaining `<script>` tag. Show the list to the user and ask explicitly whether each should be kept or removed. Do not decide independently. Do not mark the task complete until the user has answered and the appropriate action has been taken.
 
 **`node` not found** — Node.js must be installed. Download from nodejs.org. Version 18+ is recommended (ESM support).
 
